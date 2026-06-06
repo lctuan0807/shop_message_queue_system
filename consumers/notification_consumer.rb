@@ -10,23 +10,30 @@ class NotificationConsumer
     
     # Match the exact arguments RabbitMQ expects
     main_queue = channel.queue("notifications.queue.process", durable: true, arguments: {
-      "x-dead-letter-exchange"    => DEAD_LETTER_EXCHANGE,
-      "x-dead-letter-routing-key" => "notification.routing_key.dlx"
+      "x-dead-letter-exchange"    => DEAD_LETTER_EXCHANGE, # exchange to send messages to when they are dead lettered
+      "x-dead-letter-routing-key" => "notification.routing_key.dlx" # routing key to use when dead lettering
     })
     
     main_queue.bind(main_exchange, routing_key: NOTI_ROUTING_KEY)
     
     puts "[NotiConsumer] Waiting for messages..."
-
+    # sleep 15 - this is for testing DLQ with TTL - system stuck before processing
     main_queue.subscribe(manual_ack: true) do |delivery_info, properties, payload|
       begin
         puts "[NotiConsumer] Received: #{payload}"
-        data = JSON.parse(payload)
         
         # Simulate processing error
-        raise "Missing email field!" if data["email"].nil?
+        # data = JSON.parse(payload)
+        # raise "Missing email field!" if data["email"].nil?
+        # puts "[NotiConsumer] Success sending to #{data["email"]}"
         
-        puts "[NotiConsumer] Success sending to #{data["email"]}"
+        random_number = rand
+        if random_number <= 0.8
+          raise "Random error occurred!"
+        end
+        
+        puts "[NotiConsumer] Success sending to #{payload}"
+        
         channel.ack(delivery_info.delivery_tag)
         
       rescue => e
