@@ -1,22 +1,23 @@
-# require_relative "./config/environment"
+require_relative "./config/boot"
+require 'bunny'
 
-require_relative "./lib/rabbitmq_client"
-require "dotenv/load"
+puts "[System] Connected to RabbitMQ server."
 
-channel = RabbitmqClient.channel
+# 2. Generate isolated channels for thread safety
 
-queue = channel.quorum_queue("test_queue")
+# 3. Initialize consumers concurrently
+NotificationConsumer.start
+DlqConsumer.start
 
-puts " [*] Waiting for messages in #{queue.name}. To exit press CTRL+C"
+puts "[System] Both consumers running. Press Ctrl+C to stop."
 
-queue.subscribe(block: true, manual_ack: true) do |delivery_info, properties, body|
-  puts " [x] Received #{body}"
-
-  begin
-    channel.ack(delivery_info.delivery_tag)
-    puts " [x] Done"
-  rescue => e
-    puts " [x] Error processing message: #{e.message}"
-    channel.nack(delivery_info.delivery_tag, requeue: true)
+# 4. Prevent the master process from exiting early
+begin
+  loop do
+    sleep 1
   end
+rescue Interrupt
+  puts "\n[System] Gracefully shutting down..."
+  puts "[System] Stopped."
+  exit(0)
 end
